@@ -41,6 +41,7 @@ def create_dashboard(func_instance, dashboard_route):
         logger.info(f"Accessing function detail for: {function_name}")
         try:
             function = g.functionz.db.get_function(function_name)
+            logger.info("Function data: %s", function)
             if not function:
                 logger.warning(f"Function '{function_name}' not found.")
                 return f"Function '{function_name}' not found.", 404

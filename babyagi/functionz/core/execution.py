@@ -5,6 +5,7 @@ import inspect
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 import logging
+from pprint import pformat
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,7 @@ class FunctionExecutor:
         try:
             executed_functions.append(function_name)
             function_version = self.python_func.db.get_function(function_name)
+            logger.info("function_version:\n%s", pformat(function_version))
             if not function_version:
                 raise ValueError(f"Function '{function_name}' not found in the database.")
 
