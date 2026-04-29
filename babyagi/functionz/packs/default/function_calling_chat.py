@@ -9,11 +9,48 @@ import litellm
     metadata={
         "description": "A chat application that interacts with LiteLLM and executes selected functions from the database."
     },
-    imports=["litellm", "json"],
+    imports=["litellm", "json", "os"],
     dependencies=["get_function_wrapper", "execute_function_wrapper"],
     key_dependencies=["OPENAI_API_KEY"]  # Ensure this key is set in your environment
 )
 def chat_with_functions(chat_history, available_function_names) -> str:
+    import os
+
+    def debug_print_json(label: str, value):
+        print(f"\n===== {label} =====")
+        print(json.dumps(value, indent=2, ensure_ascii=False, default=str))
+        print(f"===== END {label} =====\n")
+
+    def configure_litellm() -> dict:
+        key_env_map = {
+            "openai_api_key": "OPENAI_API_KEY",
+            "anthropic_api_key": "ANTHROPIC_API_KEY",
+        }
+        for db_key_name, env_name in key_env_map.items():
+            key_value = globals().get(db_key_name) or os.getenv(env_name)
+            if key_value:
+                os.environ[env_name] = key_value
+
+        base_url = (
+            globals().get("openai_api_base")
+            or globals().get("openai_base_url")
+            or globals().get("anthropic_api_base")
+            or globals().get("anthropic_base_url")
+            or os.getenv("OPENAI_API_BASE")
+            or os.getenv("OPENAI_BASE_URL")
+            or os.getenv("ANTHROPIC_API_BASE")
+            or os.getenv("ANTHROPIC_BASE_URL")
+        )
+        anthropic_model = globals().get("anthropic_model") or os.getenv("ANTHROPIC_MODEL")
+        params = {
+            "model": anthropic_model or globals().get("babyagi_llm_model") or os.getenv("BABYAGI_LLM_MODEL") or "gpt-4-turbo"
+        }
+        if anthropic_model:
+            params["custom_llm_provider"] = globals().get("anthropic_llm_provider") or os.getenv("ANTHROPIC_LLM_PROVIDER") or "anthropic"
+        if base_url:
+            params["api_base"] = base_url
+        return params
+
     def map_python_type_to_json(python_type: str) -> dict:
         """
         Maps Python type annotations to JSON Schema types.
@@ -109,11 +146,14 @@ def chat_with_functions(chat_history, available_function_names) -> str:
 
 
     # Call LiteLLM's completion API with the user message and available tools
+    litellm_params = configure_litellm()
+    debug_print_json("chat_context before first litellm.completion", chat_context)
+    debug_print_json("tools before first litellm.completion", tools)
     response = litellm.completion(
-        model="gpt-4-turbo",
         messages=chat_context,
         tools=tools,
-        tool_choice="auto"
+        tool_choice="auto",
+        **litellm_params
     )
 
     # Extract the message from the response
@@ -151,9 +191,10 @@ def chat_with_functions(chat_history, available_function_names) -> str:
             })
 
         # Call LiteLLM again with the updated context including function responses
+        debug_print_json("chat_context before second litellm.completion", chat_context)
         second_response = litellm.completion(
-            model="gpt-4-turbo",
-            messages=chat_context
+            messages=chat_context,
+            **litellm_params
         )
 
         # Extract and return the assistant's final response

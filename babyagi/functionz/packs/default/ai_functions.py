@@ -9,8 +9,37 @@ from functionz.core.framework import func
 )
 def gpt_call(prompt: str) -> str:
     from litellm import completion
+    import os
+
+    for db_key_name, env_name in {
+        "openai_api_key": "OPENAI_API_KEY",
+        "anthropic_api_key": "ANTHROPIC_API_KEY",
+    }.items():
+        key_value = globals().get(db_key_name) or os.getenv(env_name)
+        if key_value:
+            os.environ[env_name] = key_value
+
+    base_url = (
+        globals().get("openai_api_base")
+        or globals().get("openai_base_url")
+        or globals().get("anthropic_api_base")
+        or globals().get("anthropic_base_url")
+        or os.getenv("OPENAI_API_BASE")
+        or os.getenv("OPENAI_BASE_URL")
+        or os.getenv("ANTHROPIC_API_BASE")
+        or os.getenv("ANTHROPIC_BASE_URL")
+    )
+    anthropic_model = globals().get("anthropic_model") or os.getenv("ANTHROPIC_MODEL")
+    litellm_params = {
+        "model": anthropic_model or globals().get("babyagi_llm_model") or os.getenv("BABYAGI_LLM_MODEL") or "gpt-4o"
+    }
+    if anthropic_model:
+        litellm_params["custom_llm_provider"] = globals().get("anthropic_llm_provider") or os.getenv("ANTHROPIC_LLM_PROVIDER") or "anthropic"
+    if base_url:
+        litellm_params["api_base"] = base_url
+
     messages = [{"role": "user", "content": prompt}]
-    response = completion(model="gpt-4o", messages=messages)
+    response = completion(messages=messages, **litellm_params)
     return response['choices'][0]['message']['content']
 
 @func.register_function(
@@ -87,16 +116,30 @@ def embed_input(input_text: str, model: str = "text-embedding-ada-002",
     from litellm import embedding
     import os
 
-    # Set OpenAI API Key from environment variables
-    os.environ['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
+    key_value = globals().get("openai_api_key") or os.getenv("OPENAI_API_KEY")
+    if key_value:
+        os.environ["OPENAI_API_KEY"] = key_value
+
+    base_url = (
+        globals().get("openai_api_base")
+        or globals().get("openai_base_url")
+        or globals().get("anthropic_api_base")
+        or globals().get("anthropic_base_url")
+        or os.getenv("OPENAI_API_BASE")
+        or os.getenv("OPENAI_BASE_URL")
+        or os.getenv("ANTHROPIC_API_BASE")
+        or os.getenv("ANTHROPIC_BASE_URL")
+    )
 
     # Prepare the embedding request with optional parameters
     embedding_params = {
-        "model": model,
+        "model": model or globals().get("babyagi_embedding_model") or os.getenv("BABYAGI_EMBEDDING_MODEL") or "text-embedding-ada-002",
         "input": [input_text],
         "encoding_format": encoding_format,
         "timeout": timeout
     }
+    if base_url:
+        embedding_params["api_base"] = base_url
 
     if dimensions:
         embedding_params["dimensions"] = dimensions
